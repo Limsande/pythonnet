@@ -39,14 +39,15 @@ class DotNetLoader(importlib.abc.Loader):
 class DotNetFinder(importlib.abc.MetaPathFinder):
 
     @classmethod
-    def find_spec(klass, fullname, paths=None, target=None): 
+    def find_spec(klass, fullname, paths=None, target=None):
+        print(f'[LIMSANDE] entered ImportHook.DotNetFinder.find_spec with args {klass}, {fullname}, {paths}, {target}')
         # Don't import, we might call ourselves recursively!
         if 'clr' not in sys.modules:
             return None
         clr = sys.modules['clr']
 
         clr._add_pending_namespaces()
-
+        print(f'clr._available_namespaces: {clr._available_namespaces}')
         if clr._available_namespaces and fullname in clr._available_namespaces:
             return importlib.machinery.ModuleSpec(fullname, DotNetLoader(), is_package=True)
         return None
@@ -164,7 +165,7 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
             PythonException.ThrowIfIsNull(args);
             using var codeStr = Runtime.PyString_FromString(LoaderCode);
             Runtime.PyTuple_SetItem(args.Borrow(), 0, codeStr.StealOrThrow());
-            
+
             // reference not stolen due to overload incref'ing for us.
             Runtime.PyTuple_SetItem(args.Borrow(), 1, mod_dict);
             Runtime.PyObject_Call(exec, args.Borrow(), default).Dispose();
@@ -183,9 +184,9 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
         }
 
         /// <summary>
-        /// Sets up the tracking of loaded namespaces. This makes available to 
+        /// Sets up the tracking of loaded namespaces. This makes available to
         /// Python, as a Python object, the loaded namespaces. The set of loaded
-        /// namespaces is used during the import to verify if we can import a 
+        /// namespaces is used during the import to verify if we can import a
         /// CLR assembly as a module or not. The set is stored on the clr module.
         /// </summary>
         static void SetupNamespaceTracking()
@@ -272,7 +273,7 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
         /// </summary>
         public static PyObject Import(string modname)
         {
-            // Traverse the qualified module name to get the named module. 
+            // Traverse the qualified module name to get the named module.
             // Note that if
             // we are running in interactive mode we pre-load the names in
             // each module, which is often useful for introspection. If we
@@ -281,7 +282,7 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
             // NEW: The clr got a new module variable preload. You can
             // enable preloading in a non-interactive python processing by
             // setting clr.preload = True
-
+            Console.WriteLine("[LIMSANDE] start import of " + modname);
             ModuleObject? head = null;
             ModuleObject tail = clrModule;
             clrModule.InitializePreload();
@@ -289,12 +290,15 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
             string[] names = modname.Split('.');
             foreach (string name in names)
             {
+                Console.WriteLine("[LIMSANDE] current name chunk: " + name);
                 using var nested = tail.GetAttribute(name, true);
                 if (nested.IsNull() || ManagedType.GetManagedObject(nested.Borrow()) is not ModuleObject module)
                 {
                     Exceptions.SetError(Exceptions.ImportError, $"'{name}' Is not a ModuleObject.");
                     throw PythonException.ThrowLastAsClrException();
                 }
+
+                Console.WriteLine("[LIMSANDE] Found module: " + module.ToString());
                 if (head == null)
                 {
                     head = module;
@@ -305,6 +309,7 @@ class DotNetFinder(importlib.abc.MetaPathFinder):
                     tail.LoadNames();
                 }
             }
+            Console.WriteLine("[LIMSANDE] finished import");
             return tail.Alloc().MoveToPyObject();
         }
     }

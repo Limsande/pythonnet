@@ -234,7 +234,7 @@ namespace Python.Runtime
         public static Assembly? LoadAssemblyPath(string name)
         {
             string path = FindAssembly(name);
-            if (path == null) return null;
+            if (path == null) {Console.WriteLine("[LIMSANDE] no assembly found for " + name); return null;}
             return Assembly.LoadFrom(path);
         }
 
@@ -278,16 +278,20 @@ namespace Python.Runtime
         /// </summary>
         internal static void ScanAssembly(Assembly assembly)
         {
+            Console.WriteLine("[LIMSANDE] entering AssemblyManager.ScanAssembly with arg " + assembly.ToString());
             if (assembly.GetCustomAttribute<PyExportAttribute>()?.Export == false)
             {
+                Console.WriteLine("[LIMSANDE] assembly " + assembly.ToString() + " does not export anything");
                 return;
             }
             // A couple of things we want to do here: first, we want to
             // gather a list of all of the namespaces contributed to by
             // the assembly.
+            Console.WriteLine("[LIMSANDE] found " + GetTypes(assembly).Length + " namespaces for assembly " + assembly.ToString() + ":");
             foreach (Type t in GetTypes(assembly))
             {
                 string ns = t.Namespace ?? "";
+                Console.WriteLine("[LIMSANDE]   " + assembly.ToString() + ": Type " + t.ToString() + " with namespace " + ns);
                 if (!namespaces.ContainsKey(ns))
                 {
                     string[] names = ns.Split('.');
@@ -298,6 +302,7 @@ namespace Python.Runtime
                         if (namespaces.TryAdd(s, new ConcurrentDictionary<Assembly, string>()))
                         {
                             ImportHook.AddNamespace(s);
+                            Console.WriteLine("[LIMSANDE] registered namespace " + s.ToString() + " from assembly " + assembly.ToString());
                         }
                     }
                 }
@@ -405,26 +410,40 @@ namespace Python.Runtime
 
         internal static Type[] GetTypes(Assembly a)
         {
+            Console.WriteLine("[LIMSANDE] entering AssemblyManager.GetTypes with arg " + a.ToString());
             if (a.IsDynamic)
             {
+                Console.WriteLine("[LIMSANDE] " + a.ToString() + " is dynamic");
                 try
                 {
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + " has types " + a.GetTypes().ToArray());
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + " exports types " + a.GetTypes().Where(IsExported).ToArray());
                     return a.GetTypes().Where(IsExported).ToArray();
                 }
                 catch (ReflectionTypeLoadException exc)
                 {
                     // Return all types that were successfully loaded
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + ": ReflectionTypeLoadException: " + exc.ToString());
                     return exc.Types.Where(x => x != null && IsExported(x)).ToArray();
                 }
             }
             else
             {
+                Console.WriteLine("[LIMSANDE] " + a.ToString() + " is not dynamic");
                 try
                 {
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + " has types " + a.GetExportedTypes().ToArray());
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + " exports types " + a.GetExportedTypes().Where(IsExported).ToArray());
                     return a.GetExportedTypes().Where(IsExported).ToArray();
                 }
-                catch (FileNotFoundException)
+                catch (FileNotFoundException e)
                 {
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + ": FileNotFoundException: " + e.ToString());
+                    return new Type[0];
+                }
+                catch (Exception e2)
+                {
+                    Console.WriteLine("[LIMSANDE] " + a.ToString() + ": generic exception: " + e2.ToString());
                     return new Type[0];
                 }
             }

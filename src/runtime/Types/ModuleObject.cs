@@ -497,20 +497,30 @@ namespace Python.Runtime
         [ForbidPythonThreads]
         public static Assembly AddReference(string name)
         {
+            Console.WriteLine("[LIMSANDE] entered CLRModule.AddReference with arg " + name);
             AssemblyManager.UpdatePath();
             var origNs = AssemblyManager.GetNamespaces();
+            Console.WriteLine("[LIMSANDE] namespaces before adding new reference:");
+            foreach(var ns in origNs)
+            {
+                Console.WriteLine("[LIMSANDE] " + ns.ToString());
+            }
+            origNs = AssemblyManager.GetNamespaces();
             Assembly? assembly = null;
             assembly = AssemblyManager.FindLoadedAssembly(name);
             if (assembly == null)
             {
+                Console.WriteLine("[LIMSANDE] first if");
                 assembly = AssemblyManager.LoadAssemblyPath(name);
             }
             if (assembly == null && AssemblyManager.TryParseAssemblyName(name) is { } parsedName)
             {
+                Console.WriteLine("[LIMSANDE] second if");
                 assembly = AssemblyManager.LoadAssembly(parsedName);
             }
             if (assembly == null)
             {
+                Console.WriteLine("[LIMSANDE] third if");
                 assembly = AssemblyManager.LoadAssemblyFullPath(name);
             }
             if (assembly == null)
@@ -524,8 +534,10 @@ namespace Python.Runtime
             // method because it may be called from other threads, leading to deadlocks
             // if it is called while Python code is executing.
             var currNs = AssemblyManager.GetNamespaces().Except(origNs);
+            Console.WriteLine("[LIMSANDE] namespaces after adding new reference:");
             foreach(var ns in currNs)
             {
+                Console.WriteLine("[LIMSANDE] " + ns.ToString());
                 ImportHook.AddNamespaceWithGIL(ns);
             }
             return assembly;
